@@ -1,0 +1,1324 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MailBox</title>
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json"/>
+  <meta name="theme-color" content="#e94560"/>
+  <meta name="mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="MailBox"/>
+  <link rel="apple-touch-icon" href="/icon-192.png"/>
+  <script src="/socket.io/socket.io.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    :root{--bg:#0d0d14;--surface:#16161f;--card:#1e1e2e;--border:#2a2a3d;--accent:#e94560;--accent2:#a855f7;--text:#e8e8f0;--muted:#6b6b80;--success:#22c55e;--error:#ef4444}
+    body{background:var(--bg);color:var(--text);font-family:'Sora',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+    body::before,body::after{content:'';position:fixed;border-radius:50%;filter:blur(80px);opacity:.12;pointer-events:none}
+    body::before{width:500px;height:500px;background:var(--accent);top:-100px;left:-100px}
+    body::after{width:400px;height:400px;background:var(--accent2);bottom:-100px;right:-100px}
+
+    /* AUTH */
+    .auth-wrap{width:100%;max-width:420px;padding:20px;position:relative;z-index:1}
+    .logo{text-align:center;margin-bottom:28px}
+    .logo-icon{width:52px;height:52px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:16px;display:inline-flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:10px;box-shadow:0 0 30px rgba(233,69,96,.4)}
+    .logo h1{font-size:22px;font-weight:700}
+    .logo span{color:var(--accent)}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:32px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+    .tabs{display:flex;background:var(--surface);border-radius:10px;padding:4px;margin-bottom:24px;gap:4px}
+    .tab{flex:1;padding:9px;text-align:center;font-size:13px;font-weight:600;border-radius:7px;cursor:pointer;color:var(--muted);transition:all .25s}
+    .tab.active{background:var(--accent);color:#fff}
+    .form-group{margin-bottom:16px}
+    label{display:block;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px}
+    input{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:11px 15px;color:var(--text);font-family:'Sora',sans-serif;font-size:14px;outline:none;transition:border-color .2s,box-shadow .2s}
+    input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(233,69,96,.15)}
+    input::placeholder{color:var(--muted)}
+    .btn{width:100%;padding:12px;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:4px}
+    .btn-primary{background:linear-gradient(135deg,var(--accent),#c0392b);color:#fff;box-shadow:0 4px 15px rgba(233,69,96,.35)}
+    .btn-primary:hover{transform:translateY(-1px)}
+    .btn-primary:disabled{opacity:.6;cursor:not-allowed;transform:none}
+    .btn-secondary{background:var(--surface);color:var(--muted);border:1px solid var(--border);margin-top:10px}
+    .msg{padding:10px 14px;border-radius:9px;font-size:13px;margin-bottom:14px;display:none}
+    .msg.success{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--success);display:block}
+    .msg.error{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--error);display:block}
+    .step{display:none}.step.active{display:block}
+
+    /* APP */
+    #app{display:none;width:100vw;height:100vh;flex-direction:column;position:relative;z-index:1}
+    #app.show{display:flex}
+
+    /* TOP NAV */
+    .topnav{height:56px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:12px;flex-shrink:0}
+    .menu-btn{width:36px;height:36px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;border-radius:8px;background:var(--surface);border:none;padding:8px}
+    .menu-btn span{display:block;width:18px;height:2px;background:var(--text);border-radius:2px}
+    .topnav-title{font-size:16px;font-weight:700;flex:1}
+    .topnav-avatar{width:34px;height:34px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;cursor:pointer}
+
+    /* MAIN AREA */
+    .main-area{flex:1;display:flex;overflow:hidden;position:relative}
+
+    /* SIDEBAR DRAWER */
+    .sidebar{position:absolute;left:0;top:0;bottom:0;width:280px;background:var(--card);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;transform:translateX(-100%);transition:transform .3s ease;box-shadow:4px 0 20px rgba(0,0,0,.4)}
+    .sidebar.open{transform:translateX(0)}
+    .sidebar-overlay{position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:99;display:none}
+    .sidebar-overlay.show{display:block}
+
+    .sidebar-header{padding:16px;border-bottom:1px solid var(--border)}
+    .user-info{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+    .avatar{width:40px;height:40px;background:linear-gradient(135deg,var(--accent),var(--accent2));border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:16px;flex-shrink:0}
+    .avatar.sm{width:32px;height:32px;font-size:13px}
+    .user-name{font-weight:600;font-size:14px}
+    .user-email{font-size:11px;color:var(--muted)}
+    .nav-tabs{display:flex;gap:4px}
+    .nav-tab{flex:1;padding:7px 4px;text-align:center;font-size:11px;font-weight:600;border-radius:7px;cursor:pointer;color:var(--muted);background:var(--surface);transition:all .2s}
+    .nav-tab.active{background:var(--accent);color:#fff}
+    .sidebar-body{flex:1;overflow-y:auto;padding:10px}
+    .section-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.8px;margin:10px 0 6px}
+    .user-item{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer;transition:background .2s;margin-bottom:4px}
+    .user-item:hover{background:var(--surface)}
+    .user-item.active{background:rgba(233,69,96,.15);border:1px solid rgba(233,69,96,.3)}
+    .item-name{font-size:13px;font-weight:600;flex:1}
+    .item-sub{font-size:11px;color:var(--muted)}
+    .badge{background:var(--accent);color:#fff;border-radius:99px;font-size:10px;font-weight:700;padding:2px 6px}
+    .action-btns{display:flex;gap:5px}
+    .btn-sm{padding:5px 9px;font-size:11px;font-weight:600;border:none;border-radius:6px;cursor:pointer;font-family:'Sora',sans-serif}
+    .btn-sm.accept{background:var(--success);color:#fff}
+    .btn-sm.decline{background:var(--surface);color:var(--muted);border:1px solid var(--border)}
+    .btn-sm.add{background:rgba(233,69,96,.15);color:var(--accent);border:1px solid rgba(233,69,96,.3)}
+    .logout-btn{padding:14px;border-top:1px solid var(--border)}
+    .logout-btn button{width:100%;padding:9px;background:var(--surface);color:var(--muted);border:1px solid var(--border);border-radius:8px;font-family:'Sora',sans-serif;font-size:13px;cursor:pointer}
+
+    /* CHAT */
+    .chat-area{flex:1;display:flex;flex-direction:column;width:100%}
+    .chat-header{padding:14px 16px;background:var(--card);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+    .chat-header h3{font-size:14px;font-weight:600}
+    .chat-status{font-size:11px;color:var(--muted)}
+    .chat-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:8px}
+    .empty-chat{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13px;flex-direction:column;gap:8px;min-height:200px;width:100%;margin:auto}
+    .empty-chat .icon{font-size:36px}
+    .bubble{max-width:75%;padding:10px 13px;border-radius:14px;font-size:13px;line-height:1.5;word-break:break-word}
+    .bubble.me{background:var(--accent);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
+    .bubble.them{background:var(--card);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px;border:1px solid var(--border)}
+    .bubble-time{font-size:10px;opacity:.6;margin-top:3px}
+    .chat-input{padding:12px 16px;background:var(--card);border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
+    .chat-input input{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 14px;color:var(--text);font-family:'Sora',sans-serif;font-size:13px;outline:none}
+    .chat-input input:focus{border-color:var(--accent)}
+    .send-btn{padding:10px 16px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-family:'Sora',sans-serif;font-weight:600;cursor:pointer;font-size:13px}
+
+    /* BOTTOM NAV (mobile) */
+    .bottom-nav{display:flex;background:var(--card);border-top:1px solid var(--border);flex-shrink:0}
+    .bottom-tab{flex:1;padding:12px 8px;text-align:center;cursor:pointer;font-size:10px;font-weight:600;color:var(--muted);transition:all .2s;border:none;background:none;font-family:'Sora',sans-serif}
+    .bottom-tab .icon{font-size:20px;display:block;margin-bottom:3px}
+    .bottom-tab.active{color:var(--accent)}
+    .bottom-tab .badge{display:inline-block;background:var(--accent);color:#fff;border-radius:99px;font-size:9px;font-weight:700;padding:1px 5px;margin-left:3px}
+
+    /* NOTIFICATION */
+    .notif{position:fixed;top:70px;right:12px;left:12px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 16px;font-size:13px;z-index:9999;box-shadow:0 10px 30px rgba(0,0,0,.4);animation:slideIn .3s ease}
+    @keyframes slideIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+    .notif-title{font-weight:700;margin-bottom:3px;color:var(--accent)}
+
+    /* TOPNAV ẩn/hiện trên mobile */
+    @media(max-width:768px){
+      .topnav{
+        position:fixed;top:0;left:0;right:0;z-index:300;
+        transform:translateY(-100%);
+        transition:transform .35s cubic-bezier(.4,0,.2,1);
+      }
+      .topnav.visible{transform:translateY(0);}
+
+      /* Thanh kéo lên/xuống */
+      .nav-pull{
+        position:fixed;top:0;left:50%;transform:translateX(-50%);
+        width:60px;height:22px;
+        background:var(--card);
+        border-radius:0 0 14px 14px;
+        border:1px solid var(--border);border-top:none;
+        display:flex;align-items:center;justify-content:center;
+        z-index:301;cursor:pointer;
+        transition:top .35s cubic-bezier(.4,0,.2,1), background .2s;
+        box-shadow:0 4px 12px rgba(0,0,0,.3);
+      }
+      .nav-pull::after{
+        content:'';display:block;
+        width:28px;height:3px;
+        background:rgba(255,255,255,0.35);
+        border-radius:3px;
+        transition:background .2s;
+      }
+      .nav-pull.open{top:56px;}
+      .nav-pull.open::after{background:var(--accent);}
+      .nav-pull:active{background:var(--surface);}
+    }
+    @media(min-width:769px){
+      .nav-pull{display:none;}
+    }
+
+    /* ── CALL UI ── */
+    .call-overlay{
+      position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:1000;
+      display:none;align-items:center;justify-content:center;
+      backdrop-filter:blur(8px);
+    }
+    .call-overlay.show{display:flex;}
+
+    .call-box{
+      background:var(--card);border:1px solid var(--border);
+      border-radius:28px;padding:36px 28px;
+      width:min(340px,90vw);text-align:center;
+      box-shadow:0 30px 80px rgba(0,0,0,.6);
+      position:relative;
+    }
+    .call-avatar-big{
+      width:90px;height:90px;border-radius:50%;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      display:flex;align-items:center;justify-content:center;
+      font-size:36px;font-weight:700;margin:0 auto 16px;
+      box-shadow:0 0 0 0 rgba(233,69,96,.4);
+    }
+    .call-avatar-big.ringing{animation:pulse-ring 1.5s ease-out infinite;}
+    @keyframes pulse-ring{
+      0%{box-shadow:0 0 0 0 rgba(233,69,96,.5)}
+      70%{box-shadow:0 0 0 20px rgba(233,69,96,0)}
+      100%{box-shadow:0 0 0 0 rgba(233,69,96,0)}
+    }
+    .call-name{font-size:20px;font-weight:700;margin-bottom:6px;}
+    .call-status{font-size:13px;color:var(--muted);margin-bottom:28px;}
+    .call-timer{font-size:13px;color:var(--success);margin-bottom:28px;display:none;}
+
+    .call-btns{display:flex;justify-content:center;gap:20px;}
+
+
+    /* Video */
+    .video-wrap{
+      position:fixed;inset:0;background:#000;z-index:999;
+      display:none;flex-direction:column;
+    }
+    .video-wrap.show{display:flex;}
+    .video-remote{width:100%;flex:1;object-fit:cover;background:#111;min-height:0;}
+    .video-local{
+      position:absolute;bottom:110px;right:16px;
+      width:110px;height:150px;border-radius:14px;
+      object-fit:cover;background:#222;border:2px solid rgba(255,255,255,.3);
+      cursor:pointer;transition:all .3s;z-index:10;
+    }
+    .video-controls{
+      flex-shrink:0;
+      padding:16px 24px 36px;
+      display:flex;justify-content:center;align-items:center;gap:20px;
+      background:linear-gradient(transparent,rgba(0,0,0,.85));
+      position:relative;z-index:10;
+    }
+    .pip-handle{
+      position:absolute;top:16px;left:50%;transform:translateX(-50%);
+      background:rgba(255,255,255,.15);border:none;border-radius:10px;
+      color:#fff;padding:8px 16px;font-size:12px;cursor:pointer;
+      backdrop-filter:blur(4px);z-index:10;white-space:nowrap;
+    }
+    .call-btn{
+      width:60px;height:60px;border-radius:50%;border:none;
+      font-size:22px;cursor:pointer;transition:transform .15s,opacity .15s;
+      display:flex;align-items:center;justify-content:center;
+      -webkit-tap-highlight-color:transparent;
+    }
+    .call-btn:active{transform:scale(.88);}
+    .call-btn.end{background:#ef4444;}
+    .call-btn.accept{background:var(--success);}
+    .call-btn.mute,.call-btn.cam{
+      background:rgba(255,255,255,.2);
+      border:1px solid rgba(255,255,255,.3);
+      color:#fff;
+    }
+    .call-btn.muted,.call-btn.cam-off{
+      background:rgba(255,255,255,.08);
+      opacity:.6;
+    }
+
+    /* Thu nhỏ PiP */
+    .call-pip{
+      position:fixed;bottom:90px;right:16px;
+      width:120px;background:var(--card);border:1px solid var(--border);
+      border-radius:16px;overflow:hidden;z-index:998;
+      display:none;box-shadow:0 8px 24px rgba(0,0,0,.5);cursor:pointer;
+    }
+    .call-pip.show{display:block;}
+    .call-pip video{width:100%;height:80px;object-fit:cover;background:#111;}
+    .call-pip-info{padding:6px 8px;font-size:10px;color:var(--muted);display:flex;align-items:center;gap:4px;}
+    .call-pip .call-btn{width:28px;height:28px;font-size:12px;}
+
+    /* ── PROFILE MODAL ── */
+    .modal-overlay{
+      position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:2000;
+      display:none;align-items:flex-end;justify-content:center;
+      backdrop-filter:blur(4px);
+    }
+    .modal-overlay.show{display:flex;}
+    .modal-sheet{
+      background:var(--card);border:1px solid var(--border);
+      border-radius:24px 24px 0 0;
+      width:100%;max-width:480px;padding:28px 24px 40px;
+      animation:slideUp .3s cubic-bezier(.4,0,.2,1);
+    }
+    @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    .modal-handle{width:40px;height:4px;background:var(--border);border-radius:4px;margin:0 auto 20px;}
+    .modal-title{font-size:16px;font-weight:700;margin-bottom:20px;text-align:center;}
+
+    .avatar-picker{
+      width:80px;height:80px;border-radius:50%;margin:0 auto 20px;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));
+      display:flex;align-items:center;justify-content:center;
+      font-size:32px;font-weight:700;cursor:pointer;position:relative;
+      overflow:hidden;
+    }
+    .avatar-picker img{width:100%;height:100%;object-fit:cover;border-radius:50%;}
+    .avatar-picker .edit-badge{
+      position:absolute;bottom:0;left:0;right:0;
+      background:rgba(0,0,0,.5);font-size:11px;
+      padding:4px 0;text-align:center;color:#fff;
+    }
+    .profile-input{
+      width:100%;background:var(--surface);border:1px solid var(--border);
+      border-radius:10px;padding:11px 15px;color:var(--text);
+      font-family:'Sora',sans-serif;font-size:14px;outline:none;margin-bottom:12px;
+    }
+    .profile-input:focus{border-color:var(--accent);}
+    .btn-save{
+      width:100%;padding:13px;background:linear-gradient(135deg,var(--accent),#c0392b);
+      color:#fff;border:none;border-radius:10px;font-family:'Sora',sans-serif;
+      font-size:14px;font-weight:700;cursor:pointer;margin-top:4px;
+    }
+    .btn-cancel{
+      width:100%;padding:11px;background:var(--surface);color:var(--muted);
+      border:1px solid var(--border);border-radius:10px;font-family:'Sora',sans-serif;
+      font-size:13px;cursor:pointer;margin-top:8px;
+    }
+
+    /* ── HOME FEED ── */
+    .home-feed{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:10px;}
+    .composer{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;}
+    .composer-top{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+    .composer-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;overflow:hidden;}
+    .composer-textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:10px 13px;color:var(--text);font-family:'Sora',sans-serif;font-size:13px;resize:none;outline:none;min-height:72px;line-height:1.5;}
+    .composer-textarea:focus{border-color:var(--accent);}
+    .composer-textarea::placeholder{color:var(--muted);}
+    .composer-bottom{display:flex;align-items:center;gap:8px;margin-top:10px;}
+    .composer-bottom .img-btn{padding:7px 11px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:12px;font-family:'Sora',sans-serif;cursor:pointer;display:flex;align-items:center;gap:5px;}
+    .visibility-select{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;color:var(--text);font-family:'Sora',sans-serif;font-size:12px;outline:none;cursor:pointer;flex:1;}
+    .visibility-select:focus{border-color:var(--accent);}
+    .post-btn{padding:8px 18px;background:linear-gradient(135deg,var(--accent),#c0392b);color:#fff;border:none;border-radius:8px;font-family:'Sora',sans-serif;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+    .post-btn:disabled{opacity:.5;cursor:not-allowed;}
+    .composer-img-preview{margin-top:10px;position:relative;display:none;}
+    .composer-img-preview img{width:100%;max-height:200px;object-fit:cover;border-radius:10px;display:block;}
+    .composer-img-preview .remove-img{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.6);border:none;border-radius:50%;width:24px;height:24px;color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+    .post-card{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;}
+    .post-card-header{display:flex;align-items:center;gap:10px;padding:13px 14px 0;}
+    .post-card-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0;overflow:hidden;}
+    .post-card-meta{flex:1;}
+    .post-card-name{font-size:13px;font-weight:700;}
+    .post-card-sub{font-size:11px;color:var(--muted);display:flex;align-items:center;gap:5px;margin-top:2px;}
+    .visibility-badge{font-size:10px;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:1px 5px;}
+    .post-card-body{padding:10px 14px;}
+    .post-card-text{font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;}
+    .post-card-img{width:100%;max-height:300px;object-fit:cover;display:block;margin-top:10px;border-radius:10px;}
+    .post-card-actions{display:flex;gap:0;border-top:1px solid var(--border);margin-top:10px;}
+    .post-action-btn{flex:1;padding:9px 0;background:none;border:none;color:var(--muted);font-family:'Sora',sans-serif;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px;transition:color .2s;}
+    .post-action-btn:hover{color:var(--accent);}
+    .post-action-btn.liked{color:var(--accent);}
+    .feed-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:40px 20px;color:var(--muted);font-size:13px;}
+    .feed-loader{text-align:center;padding:16px;color:var(--muted);font-size:12px;}
+  </style>
+</head>
+<body>
+
+<!-- THANH KÉO lên/xuống để hiện topnav (mobile) -->
+<div class="nav-pull" id="navPull"></div>
+
+<!-- AUTH -->
+<div id="authSection" class="auth-wrap">
+  <div class="logo">
+    <div class="logo-icon">✉️</div>
+    <h1>Mail<span>Box</span></h1>
+  </div>
+  <div class="card">
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('login')">Đăng nhập</div>
+      <div class="tab" onclick="switchTab('register')">Đăng ký</div>
+    </div>
+    <div id="loginForm" class="step active">
+      <div id="loginMsg" class="msg"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="ban@gmail.com"/></div>
+      <div class="form-group"><label>Mật khẩu</label><input type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"/></div>
+      <button class="btn btn-primary" onclick="doLogin()">Đăng nhập</button>
+    </div>
+    <div id="registerForm" class="step">
+      <div id="registerMsg" class="msg"></div>
+      <div class="form-group"><label>Họ tên</label><input type="text" id="regName" placeholder="Nguyễn Văn A"/></div>
+      <div class="form-group"><label>Email</label><input type="email" id="regEmail" placeholder="ban@gmail.com"/></div>
+      <div class="form-group"><label>Mật khẩu</label><input type="password" id="regPass" placeholder="Tối thiểu 6 ký tự"/></div>
+      <button class="btn btn-primary" id="sendOtpBtn" onclick="sendOTP()">Gửi mã OTP</button>
+    </div>
+    <div id="otpForm" class="step">
+      <div id="otpMsg" class="msg"></div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:16px">OTP đã gửi đến <strong id="sentToEmail" style="color:var(--text)"></strong></p>
+      <div class="form-group"><label>Mã OTP</label><input type="text" id="otpInput" maxlength="6" placeholder="000000" onkeydown="if(event.key==='Enter')verifyOTP()"/></div>
+      <button class="btn btn-primary" onclick="verifyOTP()">Xác thực</button>
+      <button class="btn btn-secondary" onclick="backToRegister()">← Quay lại</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <!-- TOP NAV -->
+  <div class="topnav">
+    <button class="menu-btn" onclick="toggleSidebar()">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="topnav-title" onclick="goHome()" style="cursor:pointer">✉️ Mail<span style="color:var(--accent)">Box</span></div>
+    <div class="topnav-avatar" id="myAvatar" onclick="openProfileModal()"></div>
+  </div>
+
+  <!-- MAIN -->
+  <div class="main-area">
+    <!-- Overlay -->
+    <div class="sidebar-overlay" id="overlay" onclick="closeSidebar()"></div>
+
+    <!-- SIDEBAR DRAWER -->
+    <div class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="user-info">
+          <div class="avatar" id="sidebarAvatar"></div>
+          <div><div class="user-name" id="myName"></div><div class="user-email" id="myEmail"></div></div>
+        </div>
+      </div>
+      <div class="sidebar-body" id="sidebarBody"></div>
+      <div class="logout-btn"><button onclick="doLogout()">🚪 Đăng xuất</button></div>
+    </div>
+
+    <!-- HOME FEED -->
+    <div class="home-feed" id="homeFeed" style="display:none;">
+      <!-- Composer -->
+      <div class="composer">
+        <div class="composer-top">
+          <div class="composer-avatar" id="composerAvatar"></div>
+          <textarea class="composer-textarea" id="postTextarea" placeholder="Bạn đang nghĩ gì?"></textarea>
+        </div>
+        <div class="composer-img-preview" id="composerImgPreview">
+          <img id="composerImgEl" src="" alt=""/>
+          <button class="remove-img" onclick="removePostImg()">✕</button>
+        </div>
+        <div class="composer-bottom">
+          <button class="img-btn" onclick="document.getElementById('postImgInput').click()">🖼 Ảnh</button>
+          <input type="file" id="postImgInput" accept="image/*" style="display:none" onchange="onPostImgSelected(event)"/>
+          <select class="visibility-select" id="postVisibility">
+            <option value="friends" selected>👥 Bạn bè</option>
+            <option value="public">🌐 Công khai</option>
+            <option value="private">🔒 Chỉ mình tôi</option>
+          </select>
+          <button class="post-btn" id="postSubmitBtn" onclick="submitPost()">Đăng</button>
+        </div>
+      </div>
+      <!-- Feed list -->
+      <div id="feedList"></div>
+    </div>
+
+    <!-- CHAT AREA -->
+    <div class="chat-area" id="chatArea" style="display:none;">
+      <div class="chat-header" id="chatHeader">
+        <div style="color:var(--muted);font-size:13px;width:100%;text-align:center">Chọn bạn bè để chat</div>
+      </div>
+      <div class="chat-messages" id="chatMessages">
+        <div class="empty-chat">
+          <div class="icon">💬</div>
+          <div>Chọn bạn bè để nhắn tin</div>
+        </div>
+      </div>
+      <div class="chat-input">
+        <input type="text" id="msgInput" placeholder="Nhắn tin..." onkeydown="if(event.key==='Enter')sendMessage()"/>
+        <button class="send-btn" onclick="sendMessage()">Gửi</button>
+      </div>
+    </div>
+    </div> <!-- end main-area -->
+
+  <!-- BOTTOM NAV -->
+  <div class="bottom-nav">
+    <button class="bottom-tab" id="tab-home" onclick="goHome()">
+      <span class="icon">🏠</span>Trang chủ
+    </button>
+    <button class="bottom-tab active" id="tab-friends" onclick="switchNav('friends')">
+      <span class="icon">👥</span>Bạn bè
+    </button>
+    <button class="bottom-tab" id="tab-users" onclick="switchNav('users')">
+      <span class="icon">🌐</span>Mọi người
+    </button>
+    <button class="bottom-tab" id="tab-requests" onclick="switchNav('requests')">
+      <span class="icon">🔔</span><span id="reqLabel">Lời mời</span>
+    </button>
+  </div>
+</div>
+
+<!-- PROFILE MODAL -->
+<div class="modal-overlay" id="profileModal" onclick="closeProfile(event)">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Chỉnh sửa hồ sơ</div>
+    <div class="avatar-picker" id="avatarPicker" onclick="document.getElementById('avatarFileInput').click()">
+      <span id="avatarPickerText"></span>
+      <div class="edit-badge">✏️ Đổi ảnh</div>
+    </div>
+    <input type="file" id="avatarFileInput" accept="image/*" style="display:none" onchange="onAvatarSelected(event)"/>
+    <input class="profile-input" id="profileName" type="text" placeholder="Tên hiển thị"/>
+    <button class="btn-save" onclick="saveProfile()">💾 Lưu thay đổi</button>
+    <button class="btn-cancel" onclick="closeProfileModal()">Huỷ</button>
+  </div>
+</div>
+
+<!-- CALL OVERLAY (incoming / outgoing) -->
+<div class="call-overlay" id="callOverlay">
+  <div class="call-box">
+    <div class="call-avatar-big" id="callAvatar"></div>
+    <div class="call-name" id="callName"></div>
+    <div class="call-status" id="callStatus"></div>
+    <div class="call-timer" id="callTimer"></div>
+    <div class="call-btns" id="callBtns"></div>
+  </div>
+</div>
+
+<!-- VIDEO FULL SCREEN -->
+<div class="video-wrap" id="videoWrap">
+  <video id="videoRemote" class="video-remote" autoplay playsinline></video>
+  <video id="videoLocal" class="video-local" autoplay playsinline muted></video>
+  <button class="pip-handle" onclick="minimizeCall()">⊡ Thu nhỏ</button>
+  <div class="video-controls">
+    <button class="call-btn mute" id="btnMuteV" onclick="toggleMute()" title="Tắt/bật mic">🎙️</button>
+    <button class="call-btn end" onclick="endCall()" title="Kết thúc">📵</button>
+    <button class="call-btn cam" id="btnCam" onclick="toggleCam()" title="Tắt/bật camera">📷</button>
+  </div>
+</div>
+
+<!-- PiP thu nhỏ -->
+<div class="call-pip" id="callPip" onclick="maximizeCall()">
+  <video id="pipVideo" autoplay playsinline muted></video>
+  <div class="call-pip-info">
+    <span id="pipName" style="flex:1"></span>
+    <button class="call-btn end" onclick="event.stopPropagation();endCall()" style="width:24px;height:24px;font-size:10px">📵</button>
+  </div>
+</div>
+
+<script>
+  let currentUser=null,socket=null,currentChat=null,currentNav='friends';
+
+  function goHome(){
+    currentChat = null;
+    closeSidebar();
+    document.querySelectorAll('.bottom-tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById('tab-home').classList.add('active');
+    document.getElementById('homeFeed').style.display = 'flex';
+    document.getElementById('chatArea').style.display = 'none';
+    // Init composer avatar
+    const ca = document.getElementById('composerAvatar');
+    const saved = avatarUrl(currentUser.email);
+    fetch(saved,{method:'HEAD'}).then(r=>{
+      if(r.ok) ca.innerHTML=`<img src="${saved}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/>`;
+      else ca.textContent=(currentUser.name||'?').charAt(0).toUpperCase();
+    }).catch(()=>{ ca.textContent=(currentUser.name||'?').charAt(0).toUpperCase(); });
+    loadFeed();
+  }
+  let pendingEmail='',allUsers=[],friendsData={friends:[],sent:[],received:[]};
+
+  // ── AUTH ──
+  function switchTab(tab){
+    document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',(i===0&&tab==='login')||(i===1&&tab==='register')));
+    showStep(tab==='login'?'loginForm':'registerForm');clearMsgs();
+  }
+  function showStep(id){document.querySelectorAll('.step').forEach(s=>s.classList.remove('active'));document.getElementById(id).classList.add('active');}
+  function showMsg(id,type,text){const el=document.getElementById(id);el.className=`msg ${type}`;el.textContent=text;}
+  function clearMsgs(){document.querySelectorAll('.msg').forEach(m=>{m.className='msg';m.textContent=''});}
+
+  async function doLogin(){
+    const email=document.getElementById('loginEmail').value.trim();
+    const password=document.getElementById('loginPass').value;
+    if(!email||!password)return showMsg('loginMsg','error','Điền đầy đủ thông tin.');
+    const res=await post('/api/login',{email,password});
+    if(res.success)initApp();else showMsg('loginMsg','error',res.message);
+  }
+
+  async function sendOTP(){
+    const name=document.getElementById('regName').value.trim();
+    const email=document.getElementById('regEmail').value.trim();
+    const password=document.getElementById('regPass').value;
+    if(!name||!email||!password)return showMsg('registerMsg','error','Điền đầy đủ thông tin.');
+    if(password.length<6)return showMsg('registerMsg','error','Mật khẩu tối thiểu 6 ký tự.');
+    const btn=document.getElementById('sendOtpBtn');btn.disabled=true;btn.textContent='Đang gửi...';
+    const res=await post('/api/register/send-otp',{name,email,password});
+    btn.disabled=false;btn.textContent='Gửi mã OTP';
+    if(res.success){pendingEmail=email;document.getElementById('sentToEmail').textContent=email;showStep('otpForm');showMsg('otpMsg','success',res.message);}
+    else showMsg('registerMsg','error',res.message);
+  }
+
+  async function verifyOTP(){
+    const otp=document.getElementById('otpInput').value.trim();
+    if(otp.length!==6)return showMsg('otpMsg','error','Mã OTP phải 6 chữ số.');
+    const res=await post('/api/register/verify-otp',{email:pendingEmail,otp});
+    if(res.success)initApp();else showMsg('otpMsg','error',res.message);
+  }
+  function backToRegister(){showStep('registerForm');clearMsgs();}
+
+  async function doLogout(){
+    await post('/api/logout',{});
+    if(socket)socket.disconnect();
+    socket=null;currentUser=null;currentChat=null;
+    document.getElementById('app').classList.remove('show');
+    document.getElementById('authSection').style.display='flex';
+    switchTab('login');
+  }
+
+  // ── SIDEBAR ──
+  function toggleSidebar(){
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('overlay').classList.toggle('show');
+  }
+  function closeSidebar(){
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('overlay').classList.remove('show');
+  }
+
+  // ── APP ──
+  async function initApp(){
+    const me=await fetch('/api/me').then(r=>r.json());
+    if(!me.loggedIn)return;
+    currentUser=me.user;
+    document.getElementById('authSection').style.display='none';
+    document.getElementById('app').classList.add('show');
+    document.getElementById('myName').textContent=currentUser.name;
+    document.getElementById('myEmail').textContent=currentUser.email;
+    applyAvatar(currentUser.email);
+    initSocket();
+    await loadData();
+    renderSidebar();
+    goHome();
+  }
+
+  function initSocket(){
+    socket=io();
+    socket.on('friend_request',({from,name})=>{showNotif('Lời mời kết bạn',`${name} muốn kết bạn`);loadData().then(renderSidebar);});
+    socket.on('friend_accepted',({from,name})=>{showNotif('Kết bạn thành công! 🎉',`${name} đã chấp nhận`);loadData().then(renderSidebar);});
+    socket.on('new_message',({from,text,time})=>{
+      const isMe = from === currentUser.email;
+      // Nếu là tin của mình thì bỏ qua (đã hiện ngay lúc gửi rồi)
+      if(isMe) return;
+      if(currentChat && from===currentChat){
+        appendMessage(from,text,time,false);
+      } else {
+        showNotif('Tin nhắn mới',`${from}: ${text}`);
+      }
+    });
+    socket.on('user_online',()=>{loadData().then(renderSidebar);});
+    socket.on('user_offline',()=>{loadData().then(renderSidebar);});
+
+    // WebRTC signaling
+    socket.on('call:incoming', onIncomingCall);
+    socket.on('call:unavailable', ()=>{ alert('Người dùng không online.'); cleanupCall(); });
+    socket.on('call:accepted', async ({ from })=>{
+      document.getElementById('callStatus').textContent = 'Đang kết nối...';
+      await setupMedia();
+      await createPeerConnection(true); // caller tạo offer
+    });
+    socket.on('call:declined', ()=>{ showNotif('📵 Cuộc gọi', 'Đã từ chối cuộc gọi'); cleanupCall(); });
+    socket.on('call:ended',   ()=>{ cleanupCall(); });
+    socket.on('call:offer', async ({ from, offer })=>{
+      if(!pc) return;
+      await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      socket.emit('call:answer', { to: from, answer });
+    });
+    socket.on('call:answer', async ({ answer })=>{
+      if(!pc) return;
+      await pc.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+    socket.on('call:ice', async ({ candidate })=>{
+      if(!pc) return;
+      try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); } catch(e){}
+    });
+  }
+
+  async function loadData(){
+    const [u,f]=await Promise.all([fetch('/api/users').then(r=>r.json()),fetch('/api/friends').then(r=>r.json())]);
+    allUsers=u.users||[];friendsData=f;
+    const cnt=(friendsData.received||[]).length;
+    document.getElementById('reqLabel').innerHTML=cnt>0?`Lời mời <span class="badge">${cnt}</span>`:'Lời mời';
+  }
+
+  // ── NAV ──
+  function switchNav(nav){
+    currentNav=nav;
+    document.querySelectorAll('.bottom-tab').forEach(t=>t.classList.remove('active'));
+    document.getElementById(`tab-${nav}`).classList.add('active');
+    renderSidebar();
+    // open sidebar on mobile
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('overlay').classList.add('show');
+  }
+
+  function renderSidebar(){
+    const body=document.getElementById('sidebarBody');body.innerHTML='';
+    if(currentNav==='friends')renderFriends(body);
+    else if(currentNav==='users')renderUsers(body);
+    else renderRequests(body);
+  }
+
+  function renderFriends(body){
+    const friends=friendsData.friends||[];
+    if(!friends.length){body.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;margin-top:24px">Chưa có bạn bè</div>';return;}
+    const t=document.createElement('div');t.className='section-title';t.textContent='Bạn bè';body.appendChild(t);
+    friends.forEach(f=>{
+      const el=document.createElement('div');el.className='user-item'+(currentChat===f.email?' active':'');
+      el.onclick=()=>{openChat(f.email,f.name,f.online);closeSidebar();};
+      el.innerHTML=`<div class="avatar sm">${f.name.charAt(0).toUpperCase()}</div><div style="flex:1"><div class="item-name">${f.name}</div><div class="item-sub">${f.online?'🟢 Online':'⚫ Offline'}</div></div>`;
+      body.appendChild(el);
+    });
+  }
+
+  function renderUsers(body){
+    // Ô tìm kiếm
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'padding:4px 0 10px';
+    wrap.innerHTML = `<input id="userSearch" type="text" placeholder="🔍 Tìm tên hoặc email..." style="width:100%;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:9px 13px;color:var(--text);font-family:Sora,sans-serif;font-size:13px;outline:none"/>`;
+    body.appendChild(wrap);
+
+    const resultBox = document.createElement('div');
+    body.appendChild(resultBox);
+
+    const hint = document.createElement('div');
+    hint.style.cssText = 'color:var(--muted);font-size:12px;text-align:center;margin-top:32px';
+    hint.textContent = 'Nhập tên để tìm kiếm bạn bè';
+    resultBox.appendChild(hint);
+
+    function doSearch(q){
+      resultBox.innerHTML = '';
+      if(!q){ resultBox.appendChild(hint); return; }
+      const myFriends=(friendsData.friends||[]).map(f=>f.email);
+      const mySent=(friendsData.sent||[]).map(f=>f.email);
+      const results = allUsers.filter(u =>
+        u.email !== currentUser.email &&
+        (u.name.toLowerCase().includes(q.toLowerCase()) || u.email.toLowerCase().includes(q.toLowerCase()))
+      );
+      if(!results.length){
+        resultBox.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;margin-top:24px">Không tìm thấy ai</div>';
+        return;
+      }
+      results.forEach(u=>{
+        const isFriend=myFriends.includes(u.email);
+        const isSent=mySent.includes(u.email);
+        const el=document.createElement('div');el.className='user-item';
+        el.innerHTML=`<div class="avatar sm">${u.name.charAt(0).toUpperCase()}</div><div style="flex:1"><div class="item-name">${u.name}</div><div class="item-sub">${u.online?'🟢 Online':'⚫ Offline'}</div></div>${isFriend?'<span style="font-size:11px;color:var(--success)">✓ Bạn</span>':isSent?'<span style="font-size:11px;color:var(--muted)">Đã gửi</span>':`<button class="btn-sm add" onclick="sendRequest('${u.email}',event)">+ KB</button>`}`;
+        resultBox.appendChild(el);
+      });
+    }
+
+    // Debounce tìm kiếm
+    let timer;
+    wrap.querySelector('#userSearch').addEventListener('input', e=>{
+      clearTimeout(timer);
+      timer = setTimeout(()=>doSearch(e.target.value.trim()), 250);
+    });
+  }
+
+  function renderRequests(body){
+    const received=friendsData.received||[];
+    if(!received.length){body.innerHTML='<div style="color:var(--muted);font-size:13px;text-align:center;margin-top:24px">Không có lời mời</div>';return;}
+    const t=document.createElement('div');t.className='section-title';t.textContent='Lời mời nhận được';body.appendChild(t);
+    received.forEach(f=>{
+      const el=document.createElement('div');el.className='user-item';
+      el.innerHTML=`<div class="avatar sm">${f.name.charAt(0).toUpperCase()}</div><div style="flex:1"><div class="item-name">${f.name}</div><div class="item-sub">${f.email}</div></div><div class="action-btns"><button class="btn-sm accept" onclick="acceptRequest('${f.email}',event)">✓</button><button class="btn-sm decline" onclick="declineRequest('${f.email}',event)">✗</button></div>`;
+      body.appendChild(el);
+    });
+  }
+
+  async function sendRequest(email,e){e.stopPropagation();await post('/api/friends/request',{to:email});await loadData();renderSidebar();}
+  async function acceptRequest(email,e){e.stopPropagation();await post('/api/friends/accept',{from:email});await loadData();renderSidebar();}
+  async function declineRequest(email,e){e.stopPropagation();await post('/api/friends/decline',{from:email});await loadData();renderSidebar();}
+
+  async function openChat(email,name,online){
+    currentChat=email;
+    document.getElementById('homeFeed').style.display='none';
+    document.getElementById('chatArea').style.display='flex';
+    document.getElementById('chatHeader').innerHTML=`<div class="avatar sm">${name.charAt(0).toUpperCase()}</div><div style="flex:1"><div style="font-size:14px;font-weight:600">${name}</div><div class="chat-status">${online?'🟢 Online':'⚫ Offline'}</div></div><div style="display:flex;gap:6px">${addCallButtons(email,name,online)}</div>`;
+    const res=await fetch(`/api/messages/${email}`).then(r=>r.json());
+    const msgs=document.getElementById('chatMessages');msgs.innerHTML='';
+    if(!res.messages||!res.messages.length){msgs.innerHTML='<div class="empty-chat"><div class="icon">👋</div><div>Bắt đầu trò chuyện!</div></div>';}
+    else res.messages.forEach(m=>appendMessage(m.from,m.text,m.time,m.from===currentUser.email));
+    msgs.scrollTop=msgs.scrollHeight;
+    renderSidebar();
+  }
+
+  function appendMessage(from,text,time,isMe){
+    const msgs=document.getElementById('chatMessages');
+    const empty=msgs.querySelector('.empty-chat');if(empty)empty.remove();
+    const div=document.createElement('div');
+    div.className=`bubble ${isMe||from===currentUser.email?'me':'them'}`;
+    const t=new Date(time);
+    div.innerHTML=`${text}<div class="bubble-time">${t.getHours()}:${String(t.getMinutes()).padStart(2,'0')}</div>`;
+    msgs.appendChild(div);msgs.scrollTop=msgs.scrollHeight;
+  }
+
+  function sendMessage(){
+    const input=document.getElementById('msgInput');
+    const text=input.value.trim();
+    if(!text||!currentChat)return;
+    const time=new Date().toISOString();
+    // Hiện tin nhắn ngay lập tức, không chờ server
+    appendMessage(currentUser.email,text,time,true);
+    socket.emit('send_message',{to:currentChat,text,time});
+    input.value='';
+  }
+
+  function showNotif(title,body){
+    const el=document.createElement('div');el.className='notif';
+    el.innerHTML=`<div class="notif-title">${title}</div><div>${body}</div>`;
+    document.body.appendChild(el);setTimeout(()=>el.remove(),4000);
+  }
+
+  async function post(url,data){
+    const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    return r.json();
+  }
+
+  // ── WEBRTC CALL ──
+  let pc = null;           // RTCPeerConnection
+  let localStream = null;
+  let callWith = null;     // email đang gọi
+  let callType = 'video';  // 'audio' | 'video'
+  let isCaller = false;
+  let timerInterval = null;
+  let timerSec = 0;
+  let isMuted = false;
+  let isCamOff = false;
+
+  const ICE_SERVERS = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+  // Hiện overlay gọi
+  function showCallOverlay(name, status, btns){
+    const av = document.getElementById('callAvatar');
+    const nm = document.getElementById('callName');
+    const st = document.getElementById('callStatus');
+    const bt = document.getElementById('callBtns');
+    const ti = document.getElementById('callTimer');
+    av.textContent = name.charAt(0).toUpperCase();
+    nm.textContent = name;
+    st.textContent = status;
+    st.style.display = 'block';
+    ti.style.display = 'none';
+    bt.innerHTML = btns;
+    document.getElementById('callOverlay').classList.add('show');
+  }
+
+  function hideCallOverlay(){
+    document.getElementById('callOverlay').classList.remove('show');
+  }
+
+  // Bắt đầu gọi
+  async function startCall(email, name, type){
+    callWith = email; callType = type; isCaller = true;
+    const icon = type==='video' ? '📹 Đang gọi video...' : '📞 Đang gọi thoại...';
+    document.getElementById('callAvatar').classList.add('ringing');
+    showCallOverlay(name, icon,
+      `<button class="call-btn end" onclick="cancelCall()">📵</button>`
+    );
+    socket.emit('call:request', { to: email, type });
+  }
+
+  // Nhận cuộc gọi đến
+  function onIncomingCall({ from, name, type }){
+    callWith = from; callType = type; isCaller = false;
+    const icon = type==='video' ? '📹 Cuộc gọi video' : '📞 Cuộc gọi thoại';
+    document.getElementById('callAvatar').classList.add('ringing');
+    showCallOverlay(name, icon,
+      `<button class="call-btn end" onclick="declineCall()">📵</button>
+       <button class="call-btn accept" onclick="acceptCall('${from}','${name}')">📞</button>`
+    );
+    // Rung điện thoại
+    if(navigator.vibrate) navigator.vibrate([300,100,300]);
+  }
+
+  // Chấp nhận cuộc gọi
+  async function acceptCall(from, name){
+    document.getElementById('callAvatar').classList.remove('ringing');
+    document.getElementById('callStatus').textContent = 'Đang kết nối...';
+    document.getElementById('callBtns').innerHTML = '';
+    socket.emit('call:accept', { to: from });
+    await setupMedia();
+    await createPeerConnection(false);
+  }
+
+  // Từ chối
+  function declineCall(){
+    socket.emit('call:decline', { to: callWith });
+    cleanupCall();
+  }
+
+  // Huỷ (người gọi)
+  function cancelCall(){
+    socket.emit('call:end', { to: callWith });
+    cleanupCall();
+  }
+
+  // Kết thúc cuộc gọi
+  function endCall(){
+    socket.emit('call:end', { to: callWith });
+    cleanupCall();
+  }
+
+  // Setup camera/mic
+  async function setupMedia(){
+    try {
+      const constraints = callType==='video'
+        ? { audio: true, video: { facingMode: 'user' } }
+        : { audio: true, video: false };
+      localStream = await navigator.mediaDevices.getUserMedia(constraints);
+      if(callType==='video'){
+        document.getElementById('videoLocal').srcObject = localStream;
+        document.getElementById('pipVideo').srcObject = localStream;
+      }
+    } catch(e) {
+      alert('Không truy cập được camera/mic: ' + e.message);
+      cleanupCall();
+    }
+  }
+
+  // Tạo RTCPeerConnection
+  async function createPeerConnection(asInitiator){
+    pc = new RTCPeerConnection(ICE_SERVERS);
+
+    localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+
+    pc.ontrack = e => {
+      const remote = e.streams[0];
+      if(callType==='video'){
+        document.getElementById('videoRemote').srcObject = remote;
+      } else {
+        // Audio only - dùng audio element ẩn
+        let audio = document.getElementById('remoteAudio');
+        if(!audio){ audio=document.createElement('audio'); audio.id='remoteAudio'; audio.autoplay=true; document.body.appendChild(audio); }
+        audio.srcObject = remote;
+      }
+    };
+
+    pc.onicecandidate = e => {
+      if(e.candidate) socket.emit('call:ice', { to: callWith, candidate: e.candidate });
+    };
+
+    pc.onconnectionstatechange = () => {
+      if(pc.connectionState === 'connected') onCallConnected();
+      if(['disconnected','failed','closed'].includes(pc.connectionState)) cleanupCall();
+    };
+
+    if(asInitiator){
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit('call:offer', { to: callWith, offer });
+    }
+  }
+
+  function onCallConnected(){
+    hideCallOverlay();
+    if(callType==='video'){
+      document.getElementById('videoWrap').classList.add('show');
+    }
+    // Bắt đầu đếm giờ
+    timerSec = 0;
+    timerInterval = setInterval(()=>{
+      timerSec++;
+      const m = String(Math.floor(timerSec/60)).padStart(2,'0');
+      const s = String(timerSec%60).padStart(2,'0');
+      document.getElementById('callTimer').textContent = `${m}:${s}`;
+    }, 1000);
+  }
+
+  // Toggle mic
+  function toggleMute(){
+    isMuted = !isMuted;
+    localStream?.getAudioTracks().forEach(t => t.enabled = !isMuted);
+    const btn = document.getElementById('btnMuteV');
+    if(btn){ btn.textContent = isMuted ? '🔇' : '🎙️'; btn.classList.toggle('muted', isMuted); }
+  }
+
+  // Toggle camera
+  function toggleCam(){
+    isCamOff = !isCamOff;
+    localStream?.getVideoTracks().forEach(t => t.enabled = !isCamOff);
+    const btn = document.getElementById('btnCam');
+    if(btn){ btn.textContent = isCamOff ? '🚫' : '📷'; btn.classList.toggle('cam-off', isCamOff); }
+  }
+
+  // Thu nhỏ thành PiP
+  function minimizeCall(){
+    document.getElementById('videoWrap').classList.remove('show');
+    document.getElementById('pipName').textContent = callWith;
+    document.getElementById('callPip').classList.add('show');
+  }
+
+  // Phóng to lại
+  function maximizeCall(){
+    document.getElementById('callPip').classList.remove('show');
+    document.getElementById('videoWrap').classList.add('show');
+  }
+
+  // Dọn dẹp sau cuộc gọi
+  function cleanupCall(){
+    clearInterval(timerInterval);
+    pc?.close(); pc = null;
+    localStream?.getTracks().forEach(t => t.stop()); localStream = null;
+    document.getElementById('videoWrap').classList.remove('show');
+    document.getElementById('callPip').classList.remove('show');
+    document.getElementById('callOverlay').classList.remove('show');
+    document.getElementById('callAvatar').classList.remove('ringing');
+    document.getElementById('videoRemote').srcObject = null;
+    document.getElementById('videoLocal').srcObject = null;
+    const ra = document.getElementById('remoteAudio'); if(ra) ra.remove();
+    callWith = null; isCaller = false; isMuted = false; isCamOff = false;
+  }
+
+  // Thêm nút gọi vào chat header
+  function addCallButtons(email, name, online){
+    return online ? `
+      <button onclick="startCall('${email}','${name}','audio')" title="Gọi thoại"
+        style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:7px 11px;cursor:pointer;font-size:16px;color:var(--text)">📞</button>
+      <button onclick="startCall('${email}','${name}','video')" title="Gọi video"
+        style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:7px 11px;cursor:pointer;font-size:16px;color:var(--text)">📹</button>
+    ` : '';
+  }
+
+  // ── PROFILE ──
+  let avatarDataUrl = null; // holds newly selected image (base64), null = no change
+
+  // Returns the server avatar URL for a given email (with cache-bust on save)
+  function avatarUrl(email, bust){
+    const q = bust ? `?t=${bust}` : '';
+    return `/api/avatar/${encodeURIComponent(email)}${q}`;
+  }
+
+  // Apply avatar to all avatar elements for a given email
+  // Uses a server URL; falls back to initials if 404
+  function applyAvatar(email, bust){
+    const imgStyle = 'width:100%;height:100%;object-fit:cover;border-radius:50%';
+    const letter   = (currentUser?.name||'?').charAt(0).toUpperCase();
+    const url      = avatarUrl(email, bust);
+
+    const setEl = (el, hasImg) => {
+      if(!el) return;
+      if(hasImg){
+        const img = document.createElement('img');
+        img.src = url;
+        img.style.cssText = imgStyle;
+        img.onerror = () => { el.innerHTML=''; el.textContent=letter; };
+        el.innerHTML = '';
+        el.appendChild(img);
+      } else {
+        el.innerHTML=''; el.textContent=letter;
+      }
+    };
+
+    // Probe server to see if avatar exists
+    fetch(url, {method:'HEAD'}).then(r=>{
+      const has = r.ok;
+      setEl(document.getElementById('myAvatar'), has);
+      setEl(document.getElementById('sidebarAvatar'), has);
+    }).catch(()=>{
+      setEl(document.getElementById('myAvatar'), false);
+      setEl(document.getElementById('sidebarAvatar'), false);
+    });
+  }
+
+  // Avatar for other users in chat/friend lists
+  function avatarImgTag(email, name, size){
+    const url = avatarUrl(email);
+    const letter = (name||'?').charAt(0).toUpperCase();
+    const s = size||32;
+    // Return an img that falls back to initials span on error
+    return `<img src="${url}" style="width:${s}px;height:${s}px;object-fit:cover;border-radius:50%;display:block"
+      onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+      /><span style="display:none;width:${s}px;height:${s}px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));align-items:center;justify-content:center;font-weight:700;font-size:${Math.round(s*0.4)}px;flex-shrink:0">${letter}</span>`;
+  }
+
+  function openProfileModal(){
+    document.getElementById('profileName').value = currentUser.name;
+    const picker = document.getElementById('avatarPicker');
+    avatarDataUrl = null;
+    // Show current server avatar or initials
+    const url = avatarUrl(currentUser.email);
+    fetch(url, {method:'HEAD'}).then(r=>{
+      if(r.ok){
+        picker.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/><div class="edit-badge">✏️ Đổi ảnh</div>`;
+      } else {
+        picker.innerHTML = `<span id="avatarPickerText">${currentUser.name.charAt(0).toUpperCase()}</span><div class="edit-badge">✏️ Đổi ảnh</div>`;
+      }
+    }).catch(()=>{
+      picker.innerHTML = `<span id="avatarPickerText">${currentUser.name.charAt(0).toUpperCase()}</span><div class="edit-badge">✏️ Đổi ảnh</div>`;
+    });
+    picker.onclick = ()=>document.getElementById('avatarFileInput').click();
+    document.getElementById('profileModal').classList.add('show');
+  }
+
+  function closeProfileModal(){
+    document.getElementById('profileModal').classList.remove('show');
+    avatarDataUrl = null;
+  }
+
+  function closeProfile(e){
+    if(e.target === document.getElementById('profileModal')) closeProfileModal();
+  }
+
+  function onAvatarSelected(e){
+    const file = e.target.files[0];
+    if(!file) return;
+    // Resize to max 400px before upload to keep payload small
+    const canvas = document.createElement('canvas');
+    const img = new Image();
+    img.onload = () => {
+      const max = 400;
+      let w = img.width, h = img.height;
+      if(w > max || h > max){ const r = Math.min(max/w, max/h); w=Math.round(w*r); h=Math.round(h*r); }
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      avatarDataUrl = canvas.toDataURL('image/png');
+      const picker = document.getElementById('avatarPicker');
+      picker.innerHTML = `<img src="${avatarDataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"/><div class="edit-badge">✏️ Đổi ảnh</div>`;
+      picker.onclick = ()=>document.getElementById('avatarFileInput').click();
+    };
+    img.src = URL.createObjectURL(file);
+  }
+
+  async function saveProfile(){
+    const newName = document.getElementById('profileName').value.trim();
+    if(!newName) return alert('Tên không được để trống!');
+
+    const btn = document.querySelector('#profileModal .btn-save');
+    btn.disabled = true;
+    btn.textContent = '⏳ Đang lưu...';
+
+    try {
+      const body = { name: newName };
+      if(avatarDataUrl) body.avatar = avatarDataUrl;
+
+      const res = await fetch('/api/profile', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      }).then(r=>r.json());
+
+      if(!res.success) { alert(res.message||'Lỗi lưu hồ sơ'); return; }
+
+      currentUser.name = newName;
+      document.getElementById('myName').textContent = newName;
+      // Bust cache so new avatar is loaded
+      const bust = avatarDataUrl ? Date.now() : null;
+      applyAvatar(currentUser.email, bust);
+      closeProfileModal();
+      showNotif('✅ Đã lưu', 'Hồ sơ đã được cập nhật');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '💾 Lưu thay đổi';
+    }
+  }
+
+  // ── FEED ──
+  let postImgDataUrl = null;
+  const visibilityLabel = { public:'🌐 Công khai', friends:'👥 Bạn bè', private:'🔒 Chỉ mình tôi' };
+
+  function onPostImgSelected(e){
+    const file = e.target.files[0]; if(!file) return;
+    const canvas = document.createElement('canvas'), img = new Image();
+    img.onload = ()=>{
+      const max=800, r=Math.min(max/img.width, max/img.height, 1);
+      canvas.width=Math.round(img.width*r); canvas.height=Math.round(img.height*r);
+      canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+      postImgDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      document.getElementById('composerImgEl').src = postImgDataUrl;
+      document.getElementById('composerImgPreview').style.display='block';
+    };
+    img.src = URL.createObjectURL(file);
+  }
+  function removePostImg(){
+    postImgDataUrl = null;
+    document.getElementById('composerImgPreview').style.display='none';
+    document.getElementById('composerImgEl').src='';
+    document.getElementById('postImgInput').value='';
+  }
+
+  async function submitPost(){
+    const text = document.getElementById('postTextarea').value.trim();
+    const visibility = document.getElementById('postVisibility').value;
+    if(!text && !postImgDataUrl) return;
+    const btn = document.getElementById('postSubmitBtn');
+    btn.disabled=true; btn.textContent='⏳';
+    try{
+      const body = { text, visibility };
+      if(postImgDataUrl) body.image = postImgDataUrl;
+      const res = await fetch('/api/posts', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(body)
+      }).then(r=>r.json());
+      if(res.success){
+        document.getElementById('postTextarea').value='';
+        removePostImg();
+        await loadFeed();
+      }
+    } finally { btn.disabled=false; btn.textContent='Đăng'; }
+  }
+
+  async function loadFeed(){
+    const list = document.getElementById('feedList');
+    list.innerHTML = '<div class="feed-loader">Đang tải...</div>';
+    const res = await fetch('/api/posts').then(r=>r.json());
+    list.innerHTML='';
+    if(!res.posts || !res.posts.length){
+      list.innerHTML='<div class="feed-empty"><div style="font-size:36px">📭</div><div>Chưa có bài đăng nào.<br>Hãy là người đầu tiên!</div></div>';
+      return;
+    }
+    res.posts.forEach(p => list.appendChild(renderPostCard(p)));
+  }
+
+  function renderPostCard(p){
+    const div = document.createElement('div');
+    div.className='post-card';
+    const t = new Date(p.createdAt);
+    const timeStr = `${t.getDate()}/${t.getMonth()+1} ${t.getHours()}:${String(t.getMinutes()).padStart(2,'0')}`;
+    const isMe = p.authorEmail === currentUser.email;
+    const liked = (p.likes||[]).includes(currentUser.email);
+    const likeCount = (p.likes||[]).length;
+
+    // Avatar
+    const avatarHTML = `<div class="post-card-avatar" id="pav-${p.id}">
+      <img src="/api/avatar/${encodeURIComponent(p.authorEmail)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"/>
+      <span style="display:none;width:36px;height:36px;align-items:center;justify-content:center;font-weight:700;font-size:14px">
+        ${(p.authorName||'?').charAt(0).toUpperCase()}
+      </span>
+    </div>`;
+
+    div.innerHTML=`
+      <div class="post-card-header">
+        ${avatarHTML}
+        <div class="post-card-meta">
+          <div class="post-card-name">${escHtml(p.authorName)}</div>
+          <div class="post-card-sub">
+            <span>${timeStr}</span>
+            <span class="visibility-badge">${visibilityLabel[p.visibility]||''}</span>
+          </div>
+        </div>
+        ${isMe?`<button onclick="deletePost('${p.id}',this)" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:4px" title="Xoá">🗑</button>`:''}
+      </div>
+      <div class="post-card-body">
+        ${p.text?`<div class="post-card-text">${escHtml(p.text)}</div>`:''}
+        ${p.image?`<img class="post-card-img" src="${p.image}" alt=""/>`:''}
+      </div>
+      <div class="post-card-actions">
+        <button class="post-action-btn ${liked?'liked':''}" id="like-btn-${p.id}" onclick="toggleLike('${p.id}',this)">
+          ${liked?'❤️':'🤍'} <span id="like-count-${p.id}">${likeCount||''}</span>
+        </button>
+      </div>`;
+    return div;
+  }
+
+  async function toggleLike(postId, btn){
+    btn.disabled=true;
+    const res = await fetch(`/api/posts/${postId}/like`, {method:'POST'}).then(r=>r.json());
+    if(res.success){
+      const liked = res.liked;
+      btn.className = 'post-action-btn'+(liked?' liked':'');
+      btn.querySelector('span').textContent = res.likeCount||'';
+      btn.innerHTML = (liked?'❤️':'🤍') + ` <span id="like-count-${postId}">${res.likeCount||''}</span>`;
+    }
+    btn.disabled=false;
+  }
+
+  async function deletePost(postId, btn){
+    if(!confirm('Xoá bài này?')) return;
+    const res = await fetch(`/api/posts/${postId}`, {method:'DELETE'}).then(r=>r.json());
+    if(res.success) btn.closest('.post-card').remove();
+  }
+
+  function escHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  // ── SERVICE WORKER (PWA) ──
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(console.error);
+  }
+
+  async function checkSession(){
+    const res=await fetch('/api/me').then(r=>r.json());
+    if(res.loggedIn)initApp();
+  }
+  checkSession();
+
+  // ── VUỐT TRÁI → PHẢI ĐỂ MỞ SIDEBAR (mobile) ──
+  (function(){
+    let touchStartX = 0;
+    let touchStartY = 0;
+
+    document.addEventListener('touchstart', e=>{
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }, {passive:true});
+
+    document.addEventListener('touchend', e=>{
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = Math.abs(e.changedTouches[0].clientY - touchStartY);
+
+      // Vuốt ngang rõ ràng (dx > 60, dy nhỏ để k nhầm vuốt dọc)
+      if(dx > 60 && dy < 80 && touchStartX < 40){
+        // Bắt đầu từ mép trái (<40px) vuốt sang phải → mở sidebar
+        document.getElementById('sidebar').classList.add('open');
+        document.getElementById('overlay').classList.add('show');
+      } else if(dx < -60 && dy < 80){
+        // Vuốt sang trái → đóng sidebar
+        closeSidebar();
+      }
+    }, {passive:true});
+  })();
+  (function(){
+    const pull = document.getElementById('navPull');
+    const nav  = document.querySelector('.topnav');
+    let navVisible = false;
+    let touchStartY = 0;
+
+    function showNav(){
+      navVisible = true;
+      nav.classList.add('visible');
+      pull.classList.add('open');
+    }
+    function hideNav(){
+      navVisible = false;
+      nav.classList.remove('visible');
+      pull.classList.remove('open');
+    }
+
+    // Click vào thanh pill để toggle
+    pull.addEventListener('click', ()=> navVisible ? hideNav() : showNav());
+
+    // Swipe lên từ góc trên màn hình → mở; swipe xuống khi nav mở → đóng
+    document.addEventListener('touchstart', e=>{
+      touchStartY = e.touches[0].clientY;
+    }, {passive:true});
+
+    document.addEventListener('touchend', e=>{
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      const startedNearTop = touchStartY < 40;
+
+      if(!navVisible && startedNearTop && dy > 40){
+        // kéo xuống từ trên cùng → hiện nav
+        showNav();
+      } else if(navVisible && dy < -40){
+        // kéo lên khi nav đang hiện → ẩn nav
+        hideNav();
+      }
+    }, {passive:true});
+  })();
+</script>
+</body>
+</html>
