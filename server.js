@@ -75,14 +75,20 @@ const transporter = nodemailer.createTransport({
   },
 });
 async function sendOTP(email, otp) {
-  await transporter.sendMail({
-    from: `"MailBox" <${process.env.GMAIL_USER}>`,
-    to: email,
-    subject: '🔐 Mã xác thực OTP',
-    html: `<div style="font-family:sans-serif;max-width:400px;margin:auto;padding:30px;border:1px solid #eee;border-radius:12px"><h2>Mã OTP</h2><div style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#e94560;text-align:center;padding:20px;background:#f5f5f5;border-radius:8px;margin:20px 0">${otp}</div><p style="color:#888;font-size:13px">Hiệu lực 5 phút.</p></div>`,
+  await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'api-key': process.env.BREVO_API_KEY,
+    },
+    body: JSON.stringify({
+      sender: { name: 'MailBox', email: 'quanghuy2009s@gmail.com' },
+      to: [{ email }],
+      subject: '🔐 Mã xác thực OTP',
+      htmlContent: `<div style="font-family:sans-serif;max-width:400px;margin:auto;padding:30px;border:1px solid #eee;border-radius:12px"><h2>Mã OTP</h2><div style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#e94560;text-align:center;padding:20px;background:#f5f5f5;border-radius:8px;margin:20px 0">${otp}</div><p style="color:#888;font-size:13px">Hiệu lực 5 phút.</p></div>`,
+    }),
   });
 }
-
 app.use(express.json({ limit: '5mb' }));
 app.use(express.urlencoded({ extended: true, limit: '5mb' }));
 app.use(express.static(path.join(__dirname)));
