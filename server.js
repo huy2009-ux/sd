@@ -66,10 +66,12 @@ const otpStore = {};
 const onlineUsers = {};
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS },
+  tls: { rejectUnauthorized: false },
 });
-
 async function sendOTP(email, otp) {
   await transporter.sendMail({
     from: `"MailBox" <${process.env.GMAIL_USER}>`,
