@@ -66,11 +66,13 @@ const otpStore = {};
 const onlineUsers = {};
 
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
-  auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_PASS },
-  tls: { rejectUnauthorized: false },
+  host: 'smtp-relay.brevo.com',
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.BREVO_USER,
+    pass: process.env.BREVO_PASS,
+  },
 });
 async function sendOTP(email, otp) {
   await transporter.sendMail({
